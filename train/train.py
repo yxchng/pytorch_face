@@ -12,7 +12,7 @@ import torch.backends.cudnn as cudnn
 import pytorch_face.models as models
 from pytorch_face.utils import AverageMeter
 from pytorch_face.datasets import *
-from pytorch_face.optim import SutskeverSGD
+from pytorch_face.optims import SutskeverSGD
 from pytorch_face.layers import *
 from pytorch_face.transforms import *
 
