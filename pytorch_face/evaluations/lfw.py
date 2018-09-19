@@ -5,7 +5,10 @@ import torch
 
 
 
-def evaluate_verification(feature_dir, metadata_dir):
+def evaluate_verification(model, transforms, data_dir, metadata_dir):
+    print("+----------------------------------------------------------+")
+    print("| EVALUATING MODEL VERIFICATION PERFORMANCE ON LFW DATASET |")
+    print("+----------------------------------------------------------+")
 
     pairs = open(os.path.join(metadata_dir, "lfw/pairs.txt"))
     pairs.readline()
@@ -21,22 +24,27 @@ def evaluate_verification(feature_dir, metadata_dir):
                 line = pairs.readline()
                 tokens = line.strip().split('\t')
                 if j == 0:
-                    left_path = os.path.join(feature_dir, tokens[0], '{:s}_{:0>4s}.txt'.format(tokens[0], tokens[1]))
-                    right_path = os.path.join(feature_dir, tokens[0], '{:s}_{:0>4s}.txt'.format(tokens[0], tokens[2]))
+                    left_path = os.path.join(data_dir, tokens[0], '{:s}_{:0>4s}.jpg'.format(tokens[0], tokens[1]))
+                    left_img = np.float32(cv2.imread(left_path))
+                    right_path = os.path.join(data_dir, tokens[0], '{:s}_{:0>4s}.jpg'.format(tokens[0], tokens[2]))
+                    right_img = np.float32(cv2.imread(right_path))
                 elif j == 1:
-                    left_path = os.path.join(feature_dir, tokens[0], '{:s}_{:0>4s}.txt'.format(tokens[0], tokens[1]))
-                    right_path = os.path.join(feature_dir, tokens[2], '{:s}_{:0>4s}.txt'.format(tokens[2], tokens[3]))
-                left_feature = np.loadtxt(left_path)
-                right_feature = np.loadtxt(right_path)
+                    left_path = os.path.join(data_dir, tokens[0], '{:s}_{:0>4s}.jpg'.format(tokens[0], tokens[1]))
+                    left_img = np.float32(cv2.imread(left_path))
+                    right_path = os.path.join(data_dir, tokens[2], '{:s}_{:0>4s}.jpg'.format(tokens[2], tokens[3]))
+                    right_img = np.float32(cv2.imread(right_path))
+                input = torch.cat((transforms(left_img).unsqueeze_(0), transforms(np.fliplr(left_img)).unsqueeze_(0), transforms(right_img).unsqueeze_(0), transforms(np.fliplr(right_img)).unsqueeze_(0)), 0)
+                output = model(input).detach().to('cpu').numpy()
+                left_features.append(np.hstack([output[0], output[1]]))
+                right_features.append(np.hstack([output[2], output[3]]))
                 folds.append(i)
                 pair_types.append(j)
-                left_features.append(left_feature)
-                right_features.append(right_feature)
     left_features = np.array(left_features)
     right_features = np.array(right_features)
     folds = np.array(folds)
     pair_types = np.array(pair_types)
 
+    model.eval()
     fold_scores = []
     fold_thresholds = []
     for i in range(10):
@@ -78,5 +86,10 @@ def evaluate_verification(feature_dir, metadata_dir):
         fold_scores.append(fold_score)
     fold_scores = np.array(fold_scores)
     fold_thresholds = np.array(fold_thresholds)
+
+    print("[Verification Score]")
+    for i in range(len(fold_scores)):
+        print(" - Fold {0:d} (Threshold={1:.3f}): {2:.3f}".format(i, fold_thresholds[i], fold_scores[i] * 100))
+    print(" - AVE: {0:f}".format(fold_scores.mean() * 100))
 
     return fold_thresholds, fold_scores
